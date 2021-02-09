@@ -7,6 +7,7 @@ import os
 import pathlib
 import codecs
 import hashlib
+import sys
 
 hardware_constant_hash = "05d6564396705f79890a12cd05dd914b0adc01ccaa4d5158a90bb32553025997"
 KeyX0x18_hash = "76c76b655db85219c5d35d517ffaf7a43ebad66e31fbdd5743925937a893ccfc"
@@ -38,10 +39,14 @@ def bytes_reverse(byte_string):
     return bytes(list(reversed(byte_string)))
 
 
-def get_keybin_path(args, source_file_path):
+def get_keybin_path(args):
     if args.outpath:
         keys_bin_path = args.outpath
     else:
+        if parsed_args.aeskeydb:
+            source_file_path = args.aeskeydb
+        else:
+            source_file_path = args.aeskeystxt
 
         resolved_path = pathlib.Path(source_file_path).resolve(strict=True).expanduser()
         working_directory = os.path.split(resolved_path)[0]
@@ -84,20 +89,7 @@ def run_aeskeydb(args):
         elif keyhash == DevKeyX0x2C_hash:
             keys_dict["DevKeyX0x2C"] = key_little_endian
 
-    if args.hardware_constant:
-        hardware_constant_b = bytes.fromhex(args.hardware_constant)
-        keys_dict["Hardware constant"] = bytes_reverse(hardware_constant_b)
-
-    if args.KeyX0x2C:
-        KeyX0x2C_b = bytes.fromhex(args.KeyX0x2C)
-        keys_dict["KeyX0x2C"] = bytes_reverse(KeyX0x2C_b)
-
-    if args.DevKeyX0x2C:
-        DevKeyX0x2C_b = bytes.fromhex(args.DevKeyX0x2C)
-        keys_dict["DevKeyX0x2C"] = bytes_reverse(DevKeyX0x2C_b)
-
-    keys_bin_path = get_keybin_path(args, args.aeskeydb)
-    write_keys_bin(keys_bin_path, keys_dict)
+    return keys_dict
 
 
 def run_aeskeystxt(args):
@@ -126,9 +118,32 @@ def run_aeskeystxt(args):
             elif keyhash == DevKeyX0x2C_hash:
                 keys_dict["DevKeyX0x2C"] = key_little_endian
 
-        keys_bin_path = get_keybin_path(args, args.aeskeystxt)
-        write_keys_bin(keys_bin_path, keys_dict)
+    return keys_dict
 
+def run(args):
+    aeskeydb_keys = {}
+    aeskeystxt_keys = {}
+    if parsed_args.aeskeydb:
+        aeskeydb_keys = run_aeskeydb(args)
+    if parsed_args.aeskeystxt:
+        aeskeystxt_keys = run_aeskeystxt(args)
+
+    keys_dict = {**aeskeydb_keys, **aeskeystxt_keys}
+
+    if args.hardware_constant:
+        hardware_constant_b = bytes.fromhex(args.hardware_constant)
+        keys_dict["Hardware constant"] = bytes_reverse(hardware_constant_b)
+
+    if args.KeyX0x2C:
+        KeyX0x2C_b = bytes.fromhex(args.KeyX0x2C)
+        keys_dict["KeyX0x2C"] = bytes_reverse(KeyX0x2C_b)
+
+    if args.DevKeyX0x2C:
+        DevKeyX0x2C_b = bytes.fromhex(args.DevKeyX0x2C)
+        keys_dict["DevKeyX0x2C"] = bytes_reverse(DevKeyX0x2C_b)
+
+    keys_bin_path = get_keybin_path(args)
+    write_keys_bin(keys_bin_path, keys_dict)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -146,34 +161,28 @@ if __name__ == '__main__':
     parser.add_argument('--outpath', dest="outpath", help="Path for the keys.bin. If not supplied, will output in the "
                                                           "same directory as aeskeydb.bin / aes_keys.txt")
 
-    subparsers = parser.add_subparsers(help="Subcommand help")
+    parser.add_argument('--aeskeydb_bin', dest='aeskeydb', help="Path for the aeskeydb.bin")
+    parser.add_argument('--aes_keys_txt', dest='aeskeystxt', help="Path for the aes_keys.txt")
 
-    aeskeydb_parser = subparsers.add_parser("aeskeydb.bin", help="aeskeydb.bin mode")
-    aeskeydb_parser.add_argument('aeskeydb', help="Path for the aeskeydb.bin")
-    aeskeydb_parser.add_argument('--hardware_constant', dest="hardware_constant", help="Hardware constant value  (big "
+    parser.add_argument('--hardware_constant', dest="hardware_constant", help="Hardware constant value  (big "
                                                                                        "endian), also referred to as "
                                                                                        "'generator'. Not contained in "
                                                                                        "standard aeskeydb.bin. If not "
                                                                                        "supplied, will fill with 0s")
-    aeskeydb_parser.add_argument('--KeyX0x2C', dest="KeyX0x2C", help="KeyX0x2C value  (big endian). Not contained in "
+    parser.add_argument('--KeyX0x2C', dest="KeyX0x2C", help="KeyX0x2C value  (big endian). Not contained in "
                                                                      "standard aeskeydb.bin. If not supplied, "
                                                                      "will fill with 0s")
-    aeskeydb_parser.add_argument('--DevKeyX0x2C', dest="DevKeyX0x2C", help="DevKeyX0x2C value (big endian). Not "
+    parser.add_argument('--DevKeyX0x2C', dest="DevKeyX0x2C", help="DevKeyX0x2C value (big endian). Not "
                                                                            "contained in standard aeskeydb.bin. If "
                                                                            "not supplied, will fill with 0s")
-    aeskeydb_parser.set_defaults(func_to_run=run_aeskeydb)
 
-    aeskeystxt_parser = subparsers.add_parser("aes_keys.txt", help="Citra aes_keys.txt mode")
-    aeskeystxt_parser.add_argument('aeskeystxt', help="Path for the aes_keys.txt")
-    aeskeystxt_parser.set_defaults(func_to_run=run_aeskeystxt)
 
     parsed_args = parser.parse_args()
 
-    if "func_to_run" in parsed_args:
-
-        parsed_args.func_to_run(parsed_args)
+    if parsed_args.aeskeydb or parsed_args.aeskeystxt:
+        run(parsed_args)
 
     else:
-        print("No function to run. Quitting.")
+        print("No key files in input. Quitting.")
         parser.print_help()
         sys.exit(0)
