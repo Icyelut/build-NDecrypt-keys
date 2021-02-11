@@ -132,15 +132,21 @@ def run(args):
 
     if args.hardware_constant:
         hardware_constant_b = bytes.fromhex(args.hardware_constant)
-        keys_dict["Hardware constant"] = bytes_reverse(hardware_constant_b)
+        keyhash = hashlib.sha256(hardware_constant_b).hexdigest()
+        if keyhash == hardware_constant_hash:
+            keys_dict["Hardware constant"] = bytes_reverse(hardware_constant_b)
 
     if args.KeyX0x2C:
         KeyX0x2C_b = bytes.fromhex(args.KeyX0x2C)
-        keys_dict["KeyX0x2C"] = bytes_reverse(KeyX0x2C_b)
+        keyhash = hashlib.sha256(KeyX0x2C_b).hexdigest()
+        if keyhash == KeyX0x2C_hash:
+            keys_dict["KeyX0x2C"] = bytes_reverse(KeyX0x2C_b)
 
     if args.DevKeyX0x2C:
         DevKeyX0x2C_b = bytes.fromhex(args.DevKeyX0x2C)
-        keys_dict["DevKeyX0x2C"] = bytes_reverse(DevKeyX0x2C_b)
+        keyhash = hashlib.sha256(DevKeyX0x2C_b).hexdigest()
+        if keyhash == DevKeyX0x2C_hash:
+            keys_dict["DevKeyX0x2C"] = bytes_reverse(DevKeyX0x2C_b)
 
     keys_bin_path = get_keybin_path(args)
     write_keys_bin(keys_bin_path, keys_dict)
@@ -148,7 +154,7 @@ def run(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Generate NDecrypt keys.bin from Godmode9's aeskeys.bin or Citra's aes_keys.txt "
-                    "Checks that the correct keys have been loaded via hash."
+                    "Checks that the correct keys have been loaded via hash. "
                     "Note: If you have the standard aeskeydb.bin"
                     " (sha256 4076543DA3FF911CE1CC4EC72F92E4B72B240015BE9BFCDE7FED951DD5AB2DCB)"
                     "then you will need to additionally find generator, KeyX0x2C, and DevKeyX0x2C and supply them via "
